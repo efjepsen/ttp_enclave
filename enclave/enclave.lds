@@ -29,6 +29,7 @@ SECTIONS
     *(.bss.*)
     *(.sbss)
     *(.sbss.*)
+    . = ALIGN(8);
     _bss_end = .;
   }
 }
