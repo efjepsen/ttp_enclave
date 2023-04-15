@@ -8,7 +8,7 @@
 #define riscv_perf_cntr_begin() asm volatile("csrwi 0x801, 1")
 #define riscv_perf_cntr_end() asm volatile("csrwi 0x801, 0")
 
-void enclave_entry() {
+void enclave_main() {
 #if (DEBUG_ENCLAVE == 1)
   printm("Made it inside the enclave!\n");
 #endif

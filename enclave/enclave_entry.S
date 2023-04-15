@@ -1,5 +1,6 @@
 .section ".text.entry"
 
+enclave_entry:
 la sp, stack_top
 
 la t0, _bss_start
@@ -12,7 +13,7 @@ bne t0, t1, 1b
 mv t0, zero
 mv t1, zero
 
-la ra, enclave_entry
+la ra, enclave_main
 jr ra
 
 # enclave_entry should not return!
