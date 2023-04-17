@@ -12,5 +12,7 @@ void enclave_main() {
 #if (DEBUG_ENCLAVE == 1)
   printm("Made it inside the enclave!\n");
 #endif
-  sm_exit_enclave();
+  while(1) {
+    sm_exit_enclave();
+  }
 }
