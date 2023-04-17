@@ -10,7 +10,7 @@ extern uintptr_t enclave_end;
 
 #define EVBASE 0x20000000
 
-void untrusted_entry(int core_id, uintptr_t fdt_addr) {
+void untrusted_main(int core_id, uintptr_t fdt_addr) {
   if(core_id != 0) {
     printm("Core n %d\n\n", core_id);
     test_completed();
