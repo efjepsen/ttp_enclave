@@ -1,5 +1,7 @@
 #include <untrusted_util.h>
 #include <api_untrusted.h>
+#include <local_cryptography.h>
+#include <ttp_api.h>
 
 //extern uintptr_t region1;
 extern uintptr_t region2;
@@ -8,13 +10,135 @@ extern uintptr_t region3;
 extern uintptr_t enclave_start;
 extern uintptr_t enclave_end;
 
+volatile enclave_id_t enclave_id;
+
+#define SHARED_MEM_SYNC 0x90000000
+
+#define STATE_0 0
+#define STATE_1 1
+#define STATE_2 2
+#define STATE_3 3
+
 #define EVBASE 0x20000000
 
+static void enclave_core(void);
+static void client_core(void);
+
+key_entry_t enclave_keys;
+
+struct AES_ctx aes_ctx;
+
+uint8_t scratch[512];
+
 void untrusted_main(int core_id, uintptr_t fdt_addr) {
-  if(core_id != 0) {
+  if(core_id == 0) {
+    enclave_core();
+    test_completed();
+  } else if (core_id == 1) {
+    client_core();
+    test_completed();
+  } else {
     printm("Core n %d\n\n", core_id);
     test_completed();
   }
+}
+
+void print_bytes(void * ptr, size_t length) {
+  printm("[");
+  for (int i = 0 ; i < length - 1; i++) {
+    printm("0x%x, ", ((uint8_t *)ptr)[i]);
+  }
+  printm("0x%x]\n", ((uint8_t *)ptr)[length - 1]);
+}
+
+void client_core(void) {
+  volatile int *flag = (int *) SHARED_MEM_SYNC;
+  // await flag
+  *flag = STATE_0;
+  asm volatile("fence");
+  while(*flag != STATE_1);
+
+  bool verified = verify_attestation(enclave_id);
+  printm("Verified? ");
+  if (verified) { printm("Yes!\n"); } else { printm("Nope :(\n"); }
+
+  // initialize queues
+  init_enclave_queues();
+
+  // HACKS ON HACKS - Leaves spaces for the two queues
+  init_heap(SHARED_MEM_REG + (2 * sizeof(queue_t)), 500 * PAGE_SIZE);
+
+  msg_t *m;
+  queue_t *qresp = SHARED_RESP_QUEUE;
+  int ret;
+
+  // Create keypair
+  uint8_t seed_bytes[32] = {0xaa};
+  key_seed_t * seed = &seed_bytes;
+  secret_key_t secret_key;
+  public_key_t public_key;
+  local_create_secret_signing_key(&seed, &secret_key);
+  local_compute_public_signing_key(&secret_key, &public_key);
+
+  // Send/recv pubkey with enclave
+  memcpy(&scratch, &public_key, sizeof(public_key));
+  request_key_agreement((public_key_t *)&scratch);
+
+  do {
+    ret = pop(qresp, (void **) &m);
+  } while((ret != 0) || (m->f != F_KEY_AGREEMENT));
+
+  memcpy(&enclave_keys.public_key, &scratch, sizeof(public_key_t));
+
+  // Derive shared secrets & nonce
+  local_perform_key_agreement(&enclave_keys.public_key, &secret_key, &enclave_keys.shared_key);
+  local_hash(&enclave_keys.shared_key, sizeof(symmetric_key_t), &scratch);
+
+  memcpy(&enclave_keys.stream_key, &scratch, sizeof(stream_key_t));
+
+  // TODO: Unsafe IV generation :)
+  memcpy(&enclave_keys.nonce, &scratch[sizeof(stream_key_t)], sizeof(stream_nonce_t));
+  memset(&scratch, 0, sizeof(hash_t));
+
+  // Initialize AES context
+  local_aes_init(&aes_ctx, &enclave_keys.stream_key, &enclave_keys.nonce);
+
+  printm("Client, Stream Key:");
+  print_bytes(&enclave_keys.stream_key, sizeof(stream_key_t));
+
+  printm("Client, Nonce:");
+  print_bytes(&enclave_keys.nonce, sizeof(stream_nonce_t));
+
+  // Create a batch of data for the enclave to add 1 to.
+  size_t data_length = 16;
+  for (int i = 0; i < data_length; i++) {
+    scratch[i] = (i) << 4;
+  }
+
+  // Encrypt before sending
+  local_aes_xcrypt(&aes_ctx, &scratch, data_length);
+  request_add_1(&scratch, data_length);
+
+  do {
+    ret = pop(qresp, (void **) &m);
+  } while((ret != 0) || (m->f != F_ADD_1));
+
+  // Decrypt returned data
+  local_aes_xcrypt(&aes_ctx, &scratch, m->args[0]);
+
+  printm("Client got back:");
+  for (int i = 0; i < m->args[0]; i++) {
+    printm(" 0x%x", scratch[i]);
+  }
+
+  printm("\n");
+
+  request_exit();
+  test_completed();
+}
+
+void enclave_core(void) {
+  volatile int *flag = (int *) SHARED_MEM_SYNC;
 
   //uint64_t region1_id = addr_to_region_id((uintptr_t) &region1);
   uint64_t region2_id = addr_to_region_id((uintptr_t) &region2);
@@ -50,7 +174,7 @@ void untrusted_main(int core_id, uintptr_t fdt_addr) {
 
   uint64_t region_metadata_start = sm_region_metadata_start();
 
-  enclave_id_t enclave_id = ((uintptr_t) &region3) + (PAGE_SIZE * region_metadata_start);
+  enclave_id = ((uintptr_t) &region3) + (PAGE_SIZE * region_metadata_start);
   uint64_t num_mailboxes = 1;
 
   printm("Enclave Create\n");
@@ -174,6 +298,11 @@ void untrusted_main(int core_id, uintptr_t fdt_addr) {
     printm("sm_enclave_init FAILED with error code %d\n\n", result);
     test_completed();
   }
+
+  // Let client thread know we are ready
+  while(*flag != STATE_0);
+  *flag = STATE_1;
+  asm volatile("fence");
 
   printm("Enclave Enter\n");
 

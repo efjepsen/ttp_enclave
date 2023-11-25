@@ -5,7 +5,7 @@
 #include "sbi/console.h"
 #include <parameters.h>
 
-void os_entry(int core_id, uintptr_t fdt_addr) __attribute__((noreturn));
+void untrusted_main(int core_id, uintptr_t fdt_addr) __attribute__((noreturn));
 
 #define riscv_perf_cntr_begin() asm volatile("csrwi 0x801, 1")
 #define riscv_perf_cntr_end() asm volatile("csrwi 0x801, 0")

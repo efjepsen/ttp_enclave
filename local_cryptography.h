@@ -95,4 +95,37 @@ static inline void local_perform_key_agreement (
   ed25519_key_exchange( out_key->bytes, public_key_A->bytes, secret_key_B->bytes );
 }
 
+// AES128CTR
+#include "tiny-AES-c/aes.h"
+
+typedef struct {
+  uint8_t bytes[AES_KEYLEN];
+} stream_key_t;
+
+typedef struct {
+  uint8_t bytes[AES_BLOCKLEN];
+} stream_nonce_t;
+
+static inline void local_aes_init(
+  struct AES_ctx * ctx,
+  const stream_key_t * key,
+  const stream_nonce_t * nonce) {
+  AES_init_ctx_iv(ctx, key, nonce);
+}
+
+static inline void local_aes_xcrypt(
+  struct AES_ctx * ctx,
+  uint8_t * buf,
+  size_t length) {
+  AES_CTR_xcrypt_buffer(ctx, buf, length);
+}
+
+static inline void increment_nonce(
+  stream_nonce_t * nonce) {
+  uint64_t * upper_block = (uint64_t *)nonce;
+  uint64_t * lower_block = upper_block + 1;
+  *upper_block += 1;
+  *lower_block += 1;
+}
+
 #endif

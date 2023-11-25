@@ -83,6 +83,18 @@ PAYLOAD_SRC := \
 	$(PLATFORM_DIR)/sm_keys.c \
 	$(PLATFORM_DIR)/sm_binary.S \
 	$(INFRA_DIR)/sbi/console.c \
+	$(INFRA_DIR)/ed25519/key_exchange.c \
+	$(INFRA_DIR)/ed25519/keypair.c \
+	$(INFRA_DIR)/ed25519/sha512.c \
+	$(INFRA_DIR)/ed25519/sign.c \
+	$(INFRA_DIR)/ed25519/verify.c \
+	$(INFRA_DIR)/ed25519/sc.c \
+	$(INFRA_DIR)/ed25519/ge.c \
+	$(INFRA_DIR)/ed25519/fe.c \
+	$(INFRA_DIR)/tiny-AES-c/aes.c \
+	$(INFRA_DIR)/msgq/msgq.c \
+	$(INFRA_DIR)/untrusted_helpers.c \
+	$(INFRA_DIR)/ttp_api.c \
 
 # Rules
 $(PAYLOAD_ELF): $(PAYLOAD_SRC) $(INFRA_LD) $(BUILD_DIR) $(SM_BINARY) $(ENCLAVE_BIN) $(IDPT_BIN)

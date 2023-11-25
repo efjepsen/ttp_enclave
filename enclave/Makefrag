@@ -21,6 +21,13 @@ ENCLAVE_SRC := \
   $(ENCLAVE_SRC_DIR)/enclave_entry.S \
   $(ENCLAVE_SRC_DIR)/enclave_code.c \
   $(ENCLAVE_SRC_DIR)/enclave_stack.S \
+  $(ENCLAVE_SRC_DIR)/memcpy.c \
+  $(ENCLAVE_SRC_DIR)/memset.c \
+  $(ENCLAVE_SRC_DIR)/ed25519/fe.c \
+  $(ENCLAVE_SRC_DIR)/ed25519/key_exchange.c \
+  $(ENCLAVE_SRC_DIR)/ed25519/sha512.c \
+  $(ENCLAVE_SRC_DIR)/tiny-AES-c/aes.c \
+  $(INFRA_DIR)/msgq/msgq.c \
 
 ifeq ($(DEBUG_ENCLAVE), 1)
 ENCLAVE_SRC += $(INFRA_DIR)/sbi/console.c
