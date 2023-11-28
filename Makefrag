@@ -97,6 +97,7 @@ PAYLOAD_SRC := \
 	$(INFRA_DIR)/msgq/msgq.c \
 	$(INFRA_DIR)/untrusted_helpers.c \
 	$(INFRA_DIR)/ttp_api.c \
+	$(INFRA_DIR)/enclave/mnist-14x14.c \
 
 # Rules
 $(PAYLOAD_ELF): $(PAYLOAD_SRC) $(INFRA_LD) $(BUILD_DIR) $(SM_BINARY) $(ENCLAVE_BIN) $(IDPT_BIN)

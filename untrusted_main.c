@@ -157,6 +157,8 @@ void client_core(void) {
   int8_t label;     // current label
   int8_t res;       // result label
 
+  float output[1][10];
+
   int correct = 0;  // accuracy
   int wrong = 0;    // counters
 
@@ -166,21 +168,34 @@ void client_core(void) {
     // printm("Client: Sending out image w/ label: %d\n", label);
 
     // Copy image into scratch space for encryption/sending
-    memcpy(&scratch, image_ptr, data_length);
+    // memcpy(&scratch, image_ptr, data_length);
 
     // Encrypt and send off to enclave
-    local_aes_xcrypt(&aes_ctx, &scratch, data_length);
+    // local_aes_xcrypt(&aes_ctx, &scratch, data_length);
 
-    request_mnist(&scratch, data_length, &res);
+    // request_mnist(&scratch, data_length, &res);
 
-    do {
-      ret = pop(qresp, (void **) &m);
-    } while((ret != 0) || (m->f != F_MNIST));
+    // do {
+    //  ret = pop(qresp, (void **) &m);
+    // } while((ret != 0) || (m->f != F_MNIST));
 
     // Decrypt returned results
-    local_aes_xcrypt(&aes_ctx, &res, m->args[0]);
+    // local_aes_xcrypt(&aes_ctx, &res, m->args[0]);
 
     // printm("Client got label back: %d\n", res);
+
+    // Call model
+    entry(image_ptr, &output);
+
+    // Find most likely label
+    int8_t res = 0;
+    float max = output[0][0];
+    for (int i = 0; i < 10; i++) {
+      if (output[0][i] > max) {
+        max = output[0][i];
+        res = i;
+      }
+    }
 
     if (res == label) { correct++; } else { wrong++; }
   }
