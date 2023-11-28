@@ -12,6 +12,13 @@ extern uintptr_t enclave_end;
 
 volatile enclave_id_t enclave_id;
 
+/*
+ * images_bin: greyscale images for our mnist model. array of (float[14][14])*1024
+ * labels_bin: labels for our images. (int8_t)*1024
+ */
+extern uintptr_t images_bin;
+extern uintptr_t labels_bin;
+
 #define SHARED_MEM_SYNC 0x90000000
 
 #define STATE_0 0
@@ -28,7 +35,7 @@ key_entry_t enclave_keys;
 
 struct AES_ctx aes_ctx;
 
-uint8_t scratch[512];
+uint8_t scratch[1024];
 
 void untrusted_main(int core_id, uintptr_t fdt_addr) {
   if(core_id == 0) {
@@ -109,6 +116,7 @@ void client_core(void) {
   printm("Client, Nonce:");
   print_bytes(&enclave_keys.nonce, sizeof(stream_nonce_t));
 
+  /*
   // Create a batch of data for the enclave to add 1 to.
   size_t data_length = 16;
   for (int i = 0; i < data_length; i++) {
@@ -132,6 +140,43 @@ void client_core(void) {
   }
 
   printm("\n");
+  */
+
+  /* Handwriting recognition */
+  size_t data_length = sizeof(float)*14*14; // 14x14 images
+  void * image_ptr; // ptr to current image
+  int8_t label;     // current label
+  int8_t res;       // result label
+
+  int correct = 0;  // accuracy
+  int wrong = 0;    // counters
+
+  for (int i = 0; i < 1024; i++) {
+    image_ptr = ((uint8_t *)&images_bin) + i*data_length;
+    label = ((uint8_t *)&labels_bin)[i];
+    // printm("Client: Sending out image w/ label: %d\n", label);
+
+    // Copy image into scratch space for encryption/sending
+    memcpy(&scratch, image_ptr, data_length);
+
+    // Encrypt and send off to enclave
+    local_aes_xcrypt(&aes_ctx, &scratch, data_length);
+
+    request_mnist(&scratch, data_length, &res);
+
+    do {
+      ret = pop(qresp, (void **) &m);
+    } while((ret != 0) || (m->f != F_MNIST));
+
+    // Decrypt returned results
+    local_aes_xcrypt(&aes_ctx, &res, m->args[0]);
+
+    // printm("Client got label back: %d\n", res);
+
+    if (res == label) { correct++; } else { wrong++; }
+  }
+
+  printm("Correct: %d out of %d\n", correct, correct + wrong);
 
   request_exit();
   test_completed();

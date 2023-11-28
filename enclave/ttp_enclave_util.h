@@ -8,6 +8,7 @@
 
 #define F_KEY_AGREEMENT  0x0
 #define F_ADD_1          0x1
+#define F_MNIST          0x2
 #define F_EXIT           0x20
 
 typedef struct msg_t {

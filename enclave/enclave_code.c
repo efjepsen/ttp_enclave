@@ -9,7 +9,8 @@
 #define riscv_perf_cntr_begin() asm volatile("csrwi 0x801, 1")
 #define riscv_perf_cntr_end() asm volatile("csrwi 0x801, 0")
 
-uint8_t scratch[512] = {0};
+uint8_t scratch[1024] = {0};
+float output[1][10];
 
 key_entry_t client_keys = {0};
 
@@ -84,6 +85,43 @@ void handle_add_1(msg_t * msg) {
   msg->ret = 0;
 }
 
+void handle_mnist(msg_t * msg) {
+  size_t length = msg->args[0];
+  void * encrypted_msg = msg->args[1];
+  void * encrypted_results = msg->args[2];
+
+  // Copy encrypted image into enclave private memory
+  memcpy(&scratch, encrypted_msg, length);
+
+  // Decrypt
+  aes_xcrypt(&aes_ctx, &scratch, length);
+
+  // Call MNIST classifying model
+  float output[1][10];
+  entry(&scratch, &output);
+
+  // Find most likely label
+  int8_t res = 0;
+  float max = output[0][0];
+  for (int i = 0; i < 10; i++) {
+    if (output[0][i] > max) {
+      max = output[0][i];
+      res = i;
+    }
+  }
+
+  // printm("Enclave detected label: %d\n", res);
+
+  // Copy and send encrypted results back to client
+  length = sizeof(res);
+  memcpy(&scratch, &res, length);
+  aes_xcrypt(&aes_ctx, &scratch, length);
+  memcpy(encrypted_results, &scratch, length);
+
+  msg->args[0] = length;
+  msg->ret = 0;
+}
+
 void enclave_main() {
 #if (DEBUG_ENCLAVE == 1)
   printm("Made it inside the enclave!\n");
@@ -113,6 +151,9 @@ void enclave_main() {
         break;
       case F_ADD_1:
         handle_add_1(m);
+        break;
+      case F_MNIST:
+        handle_mnist(m);
         break;
       case F_EXIT:
         m->ret = 0;

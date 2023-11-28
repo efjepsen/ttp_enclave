@@ -27,6 +27,7 @@ ENCLAVE_SRC := \
   $(ENCLAVE_SRC_DIR)/ed25519/key_exchange.c \
   $(ENCLAVE_SRC_DIR)/ed25519/sha512.c \
   $(ENCLAVE_SRC_DIR)/tiny-AES-c/aes.c \
+  $(ENCLAVE_SRC_DIR)/mnist-14x14.c \
   $(INFRA_DIR)/msgq/msgq.c \
 
 ifeq ($(DEBUG_ENCLAVE), 1)

@@ -102,4 +102,12 @@ SECTIONS
   .idpt IDPT_BASE : {
     *(.idpt)
   } > PAYLOAD =0x0
+
+  .images ALIGN(0x1000) : {
+    *(.images)
+  } > PAYLOAD =0x0
+
+  .labels ALIGN(0x1000) : {
+    *(.labels)
+  } > PAYLOAD =0x0
 }

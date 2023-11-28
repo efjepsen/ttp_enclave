@@ -73,6 +73,7 @@ INFRA_INCLUDES := \
 # Sources
 PAYLOAD_SRC := \
 	$(INFRA_DIR)/enclave_bin.S \
+	$(INFRA_DIR)/binaries.S \
 	$(INFRA_DIR)/untrusted_entry.S \
 	$(INFRA_DIR)/untrusted_main.c \
 	$(INFRA_DIR)/untrusted_util.c \

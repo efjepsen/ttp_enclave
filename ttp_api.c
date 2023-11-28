@@ -25,6 +25,19 @@ void request_add_1(const void * encrypted_msg, const size_t msg_len) {
   } while(ret != 0);
 }
 
+void request_mnist(const void * encrypted_msg, const size_t msg_len, const void * encrypted_results) {
+  queue_t *q = SHARED_REQU_QUEUE;
+  msg_t *msg = malloc(sizeof(msg_t));
+  msg->f = F_MNIST;
+  msg->args[0] = (uintptr_t) msg_len;
+  msg->args[1] = (uintptr_t) encrypted_msg;
+  msg->args[2] = (uintptr_t) encrypted_results;
+  int ret;
+  do {
+    ret = push(q, msg);
+  } while(ret != 0);
+}
+
 void request_exit(void) {
   queue_t *q = SHARED_REQU_QUEUE;
   msg_t *msg = malloc(sizeof(msg_t));
