@@ -83,6 +83,7 @@ PAYLOAD_SRC := \
 	$(PLATFORM_DIR)/htif_for_linking.c \
 	$(PLATFORM_DIR)/sm_keys.c \
 	$(PLATFORM_DIR)/sm_binary.S \
+	$(PLATFORM_DIR)/platform_lock.c \
 	$(INFRA_DIR)/sbi/console.c \
 	$(INFRA_DIR)/ed25519/key_exchange.c \
 	$(INFRA_DIR)/ed25519/keypair.c \

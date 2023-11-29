@@ -29,6 +29,7 @@ ENCLAVE_SRC := \
   $(ENCLAVE_SRC_DIR)/tiny-AES-c/aes.c \
   $(ENCLAVE_SRC_DIR)/mnist-14x14.c \
   $(INFRA_DIR)/msgq/msgq.c \
+  $(PLATFORM_DIR)/platform_lock.c \
 
 ifeq ($(DEBUG_ENCLAVE), 1)
 ENCLAVE_SRC += $(INFRA_DIR)/sbi/console.c

@@ -38,6 +38,9 @@ struct AES_ctx aes_ctx;
 uint8_t scratch[1024];
 
 void untrusted_main(int core_id, uintptr_t fdt_addr) {
+  // Init Peterson's Lock library with core_id
+  init_p_lock_global(core_id);
+
   if(core_id == 0) {
     enclave_core();
     test_completed();
@@ -61,9 +64,15 @@ void print_bytes(void * ptr, size_t length) {
 void client_core(void) {
   volatile int *flag = (int *) SHARED_MEM_SYNC;
   // await flag
-  *flag = STATE_0;
   asm volatile("fence");
-  while(*flag != STATE_1);
+  while(*flag != STATE_3) {
+    if(*flag == STATE_1) {
+     api_result_t res = sm_region_update();
+     if(res == MONITOR_OK) {
+      *flag = STATE_2;
+     }
+    }
+  };
 
   bool verified = verify_attestation(enclave_id);
   printm("Verified? ");
@@ -184,14 +193,39 @@ void client_core(void) {
 
 void enclave_core(void) {
   volatile int *flag = (int *) SHARED_MEM_SYNC;
+  *flag = STATE_0;
+
+  api_result_t result;
+  cache_partition_t new_partition;
+
+  for(int i = 0; i < 64; i++) {
+    if(i == 0) {
+      new_partition.lgsizes[i] = 4;
+    } else if( i == 1 ) {
+      new_partition.lgsizes[i] = 7;
+    } else if( i == 3 ) {
+      new_partition.lgsizes[i] = 8;
+    } else if( i == 5 ) {
+      new_partition.lgsizes[i] = 7;
+    } else if( i == 6 ) {
+      new_partition.lgsizes[i] = 7;
+    } else if( i <  6 ) {
+      new_partition.lgsizes[i] = 5;
+    } else {
+      new_partition.lgsizes[i] = 0;
+    }
+  }
+
+  printm("Change LLC partitioning\n");
+  result = sm_region_cache_partitioning(&new_partition);
+  if(result != MONITOR_OK) {
+    printm("sm_region_cache_partitioning FAILED with error code %d\n", result);
+    test_completed();
+  }
 
   //uint64_t region1_id = addr_to_region_id((uintptr_t) &region1);
   uint64_t region2_id = addr_to_region_id((uintptr_t) &region2);
   uint64_t region3_id = addr_to_region_id((uintptr_t) &region3);
-
-  api_result_t result;
-
-  printm("\n");
 
   printm("Region block\n");
 
@@ -200,6 +234,17 @@ void enclave_core(void) {
     printm("sm_region_block FAILED with error code %d\n\n", result);
     test_completed();
   }
+
+  printm("Region block\n");
+
+  result = sm_region_block(region2_id);
+  if(result != MONITOR_OK) {
+    printm("sm_region_block FAILED with error code %d\n\n", result);
+    test_completed();
+  }
+
+  *flag = STATE_1;
+  while(*flag != STATE_2);
 
   printm("Region free\n");
 
@@ -228,14 +273,6 @@ void enclave_core(void) {
   result = sm_enclave_create(enclave_id, EVBASE, REGION_MASK, num_mailboxes, true);
   if(result != MONITOR_OK) {
     printm("sm_enclave_create FAILED with error code %d\n\n", result);
-    test_completed();
-  }
-
-  printm("Region block\n");
-
-  result = sm_region_block(region2_id);
-  if(result != MONITOR_OK) {
-    printm("sm_region_block FAILED with error code %d\n\n", result);
     test_completed();
   }
 
@@ -345,8 +382,8 @@ void enclave_core(void) {
   }
 
   // Let client thread know we are ready
-  while(*flag != STATE_0);
-  *flag = STATE_1;
+  while(*flag != STATE_2);
+  *flag = STATE_3;
   asm volatile("fence");
 
   printm("Enclave Enter\n");

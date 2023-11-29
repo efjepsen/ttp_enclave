@@ -123,6 +123,8 @@ void handle_mnist(msg_t * msg) {
 }
 
 void enclave_main() {
+  init_p_lock_global(0);
+
 #if (DEBUG_ENCLAVE == 1)
   printm("Made it inside the enclave!\n");
 #endif
