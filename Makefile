@@ -1,5 +1,6 @@
 # Find the Root Directory
 INFRA_DIR:=$(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+SM_BUILD_DIR:=../security_monitor/build
 
 # Define compiler
 PYTHON=python3
