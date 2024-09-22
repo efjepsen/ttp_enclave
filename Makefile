@@ -16,6 +16,30 @@ DEBUG_FLAGS := -ggdb3
 CFLAGS := -march=rv64g -mcmodel=medany -mabi=lp64 -fno-common -fno-tree-loop-distribute-patterns -std=gnu11 -Wall -O3 $(DEBUG_FLAGS)
 LDFLAGS := -nostartfiles -nostdlib -static
 
+ifdef MEASURE
+ifeq ($(MEASURE), ALL)
+CFLAGS += -D MEASURE=1
+else ifeq ($(MEASURE), MEMCPY)
+CFLAGS += -D MEASURE=2
+else ifeq ($(MEASURE), AES)
+CFLAGS += -D MEASURE=3
+else ifeq ($(MEASURE), MODEL)
+CFLAGS += -D MEASURE=4
+else ifeq ($(MEASURE), ENCLAVE_SETUP)
+CFLAGS += -D MEASURE=5
+else ifeq ($(MEASURE), BASELINE_ALL)
+CFLAGS += -D MEASURE=6
+else ifeq ($(MEASURE), BASELINE_AES)
+CFLAGS += -D MEASURE=7
+else ifeq ($(MEASURE), BASELINE_MODEL)
+CFLAGS += -D MEASURE=8
+else
+$(error MEASURE should be set to ALL, MEMCPY, AES, MODEL, ENCLAVE_SETUP, BASELINE_ALL, BASELINE_AES, or BASELINE_MODEL)
+endif
+else
+CFLAGS += -D MEASURE=0
+endif
+
 FLAGS_DEBUG_ENCLAVE :=
 ifeq ($(DEBUG_ENCLAVE), 1)
 FLAGS_DEBUG_ENCLAVE += -D DEBUG_ENCLAVE=1

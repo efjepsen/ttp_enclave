@@ -91,14 +91,32 @@ void handle_mnist(msg_t * msg) {
   void * encrypted_results = msg->args[2];
 
   // Copy encrypted image into enclave private memory
+#if (MEASURE == 2)
+  riscv_perf_cntr_begin();
+#endif
   memcpy(&scratch, encrypted_msg, length);
+#if (MEASURE == 2)
+  riscv_perf_cntr_end();
+#endif
 
   // Decrypt
+#if (MEASURE == 3)
+  riscv_perf_cntr_begin();
+#endif
   aes_xcrypt(&aes_ctx, &scratch, length);
+#if (MEASURE == 3)
+  riscv_perf_cntr_end();
+#endif
 
   // Call MNIST classifying model
   float output[1][10];
+#if (MEASURE == 4)
+  riscv_perf_cntr_begin();
+#endif
   entry(&scratch, &output);
+#if (MEASURE == 4)
+  riscv_perf_cntr_end();
+#endif
 
   // Find most likely label
   int8_t res = 0;
@@ -114,9 +132,29 @@ void handle_mnist(msg_t * msg) {
 
   // Copy and send encrypted results back to client
   length = sizeof(res);
+#if (MEASURE == 2)
+  riscv_perf_cntr_begin();
+#endif
   memcpy(&scratch, &res, length);
+#if (MEASURE == 2)
+  riscv_perf_cntr_end();
+#endif
+
+#if (MEASURE == 3)
+  riscv_perf_cntr_begin();
+#endif
   aes_xcrypt(&aes_ctx, &scratch, length);
+#if (MEASURE == 3)
+  riscv_perf_cntr_end();
+#endif
+
+#if (MEASURE == 2)
+  riscv_perf_cntr_begin();
+#endif
   memcpy(encrypted_results, &scratch, length);
+#if (MEASURE == 2)
+  riscv_perf_cntr_end();
+#endif
 
   msg->args[0] = length;
   msg->ret = 0;
@@ -124,6 +162,10 @@ void handle_mnist(msg_t * msg) {
 
 void enclave_main() {
   init_p_lock_global(0);
+
+#if (MEASURE == 5)
+  riscv_perf_cntr_end();
+#endif
 
 #if (DEBUG_ENCLAVE == 1)
   printm("Made it inside the enclave!\n");
@@ -155,7 +197,13 @@ void enclave_main() {
         handle_add_1(m);
         break;
       case F_MNIST:
+#if (MEASURE == 1)
+        riscv_perf_cntr_begin();
+#endif
         handle_mnist(m);
+#if (MEASURE == 1)
+        riscv_perf_cntr_end();
+#endif
         break;
       case F_EXIT:
         m->ret = 0;

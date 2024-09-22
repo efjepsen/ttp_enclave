@@ -34,6 +34,9 @@ static void client_core(void);
 key_entry_t enclave_keys;
 
 struct AES_ctx aes_ctx;
+#if (MEASURE >= 6)
+struct AES_ctx aes_ctx_baseline;
+#endif
 
 uint8_t scratch[1024];
 
@@ -118,6 +121,9 @@ void client_core(void) {
 
   // Initialize AES context
   local_aes_init(&aes_ctx, &enclave_keys.stream_key, &enclave_keys.nonce);
+#if (MEASURE >= 6)
+  local_aes_init(&aes_ctx_baseline, &enclave_keys.stream_key, &enclave_keys.nonce);
+#endif
 
   printm("Client, Stream Key:");
   print_bytes(&enclave_keys.stream_key, sizeof(stream_key_t));
@@ -160,6 +166,74 @@ void client_core(void) {
   int correct = 0;  // accuracy
   int wrong = 0;    // counters
 
+#if (MEASURE >= 6)
+#if (MEASURE == 6)
+  riscv_perf_cntr_begin();
+#endif
+  for (int i = 0; i < 1024; i++) {
+    image_ptr = ((uint8_t *)&images_bin) + i*data_length;
+    label = ((uint8_t *)&labels_bin)[i];
+
+#if (MEASURE == 6)
+    // We don't include this encryption since it should have taken place by the time we receive this message.
+    riscv_perf_cntr_end();
+    local_aes_xcrypt(&aes_ctx, image_ptr, data_length);
+    riscv_perf_cntr_begin();
+#else
+    local_aes_xcrypt(&aes_ctx, image_ptr, data_length);
+#endif
+
+#if (MEASURE == 7)
+    riscv_perf_cntr_begin();
+    local_aes_xcrypt(&aes_ctx_baseline, image_ptr, data_length);
+    riscv_perf_cntr_end();
+#else
+    local_aes_xcrypt(&aes_ctx_baseline, image_ptr, data_length);
+#endif
+
+    float output[1][10];
+#if (MEASURE == 8)
+    riscv_perf_cntr_begin();
+    entry(image_ptr, &output);
+    riscv_perf_cntr_end();
+#else
+    entry(image_ptr, &output);
+#endif
+
+    // Find most likely label
+    int8_t res = 0;
+    float max = output[0][0];
+    for (int i = 0; i < 10; i++) {
+      if (output[0][i] > max) {
+        max = output[0][i];
+        res = i;
+      }
+    }
+
+    if (res == label) { correct++; } else { wrong++; }
+
+    size_t length = sizeof(res);
+#if (MEASURE == 7)
+    riscv_perf_cntr_begin();
+    local_aes_xcrypt(&aes_ctx, &res, length);
+    riscv_perf_cntr_end();
+#else
+    local_aes_xcrypt(&aes_ctx, &res, length);
+#endif
+
+#if (MEASURE == 6)
+    // We don't include this decryption, just need it to occur to keep both AES contexts aligned.
+    riscv_perf_cntr_end();
+    local_aes_xcrypt(&aes_ctx_baseline, &res, length);
+    riscv_perf_cntr_begin();
+#else
+    local_aes_xcrypt(&aes_ctx_baseline, &res, length);
+#endif
+  }
+#if (MEASURE == 6)
+  riscv_perf_cntr_end();
+#endif
+#else
   for (int i = 0; i < 1024; i++) {
     image_ptr = ((uint8_t *)&images_bin) + i*data_length;
     label = ((uint8_t *)&labels_bin)[i];
@@ -184,7 +258,7 @@ void client_core(void) {
 
     if (res == label) { correct++; } else { wrong++; }
   }
-
+#endif
   printm("Correct: %d out of %d\n", correct, correct + wrong);
 
   request_exit();
@@ -196,38 +270,16 @@ void enclave_core(void) {
   *flag = STATE_0;
 
   api_result_t result;
-  cache_partition_t new_partition;
-
-  for(int i = 0; i < 64; i++) {
-    if(i == 0) {
-      new_partition.lgsizes[i] = 4;
-    } else if( i == 1 ) {
-      new_partition.lgsizes[i] = 7;
-    } else if( i == 3 ) {
-      new_partition.lgsizes[i] = 8;
-    } else if( i == 5 ) {
-      new_partition.lgsizes[i] = 7;
-    } else if( i == 6 ) {
-      new_partition.lgsizes[i] = 7;
-    } else if( i <  6 ) {
-      new_partition.lgsizes[i] = 5;
-    } else {
-      new_partition.lgsizes[i] = 0;
-    }
-  }
-
-  printm("Change LLC partitioning\n");
-  result = sm_region_cache_partitioning(&new_partition);
-  if(result != MONITOR_OK) {
-    printm("sm_region_cache_partitioning FAILED with error code %d\n", result);
-    test_completed();
-  }
 
   //uint64_t region1_id = addr_to_region_id((uintptr_t) &region1);
   uint64_t region2_id = addr_to_region_id((uintptr_t) &region2);
   uint64_t region3_id = addr_to_region_id((uintptr_t) &region3);
 
-  printm("Region block\n");
+  // printm("Region block\n");
+
+#if (MEASURE == 5)
+  riscv_perf_cntr_begin();
+#endif
 
   result = sm_region_block(region3_id);
   if(result != MONITOR_OK) {
@@ -235,7 +287,7 @@ void enclave_core(void) {
     test_completed();
   }
 
-  printm("Region block\n");
+  // printm("Region block\n");
 
   result = sm_region_block(region2_id);
   if(result != MONITOR_OK) {
@@ -246,7 +298,7 @@ void enclave_core(void) {
   *flag = STATE_1;
   while(*flag != STATE_2);
 
-  printm("Region free\n");
+  // printm("Region free\n");
 
   result = sm_region_free(region3_id);
   if(result != MONITOR_OK) {
@@ -254,7 +306,7 @@ void enclave_core(void) {
     test_completed();
   }
 
-  printm("Region Metadata Create\n");
+  // printm("Region Metadata Create\n");
 
   result = sm_region_metadata_create(region3_id);
   if(result != MONITOR_OK) {
@@ -267,8 +319,7 @@ void enclave_core(void) {
   enclave_id = ((uintptr_t) &region3) + (PAGE_SIZE * region_metadata_start);
   uint64_t num_mailboxes = 1;
 
-  printm("Enclave Create\n");
-
+  // printm("Enclave Create\n");
 
   result = sm_enclave_create(enclave_id, EVBASE, REGION_MASK, num_mailboxes, true);
   if(result != MONITOR_OK) {
@@ -276,7 +327,7 @@ void enclave_core(void) {
     test_completed();
   }
 
-  printm("Region free\n");
+  // printm("Region free\n");
 
   result = sm_region_free(region2_id);
   if(result != MONITOR_OK) {
@@ -284,7 +335,7 @@ void enclave_core(void) {
     test_completed();
   }
 
-  printm("Region assign\n");
+  // printm("Region assign\n");
 
   result = sm_region_assign(region2_id, enclave_id);
   if(result != MONITOR_OK) {
@@ -295,7 +346,7 @@ void enclave_core(void) {
   uintptr_t enclave_handler_address = (uintptr_t) &region2;
   uintptr_t enclave_handler_stack_pointer = enclave_handler_address + HANDLER_LEN + (STACK_SIZE * NUM_CORES);
 
-  printm("Enclave Load Handler\n");
+  // printm("Enclave Load Handler\n");
 
   result = sm_enclave_load_handler(enclave_id, enclave_handler_address);
   if(result != MONITOR_OK) {
@@ -305,7 +356,7 @@ void enclave_core(void) {
 
   uintptr_t page_table_address = enclave_handler_stack_pointer;
 
-  printm("Enclave Load Page Table\n");
+  // printm("Enclave Load Page Table\n");
 
   result = sm_enclave_load_page_table(enclave_id, page_table_address, EVBASE, 3, NODE_ACL);
   if(result != MONITOR_OK) {
@@ -315,7 +366,7 @@ void enclave_core(void) {
 
   page_table_address += PAGE_SIZE;
 
-  printm("Enclave Load Page Table\n");
+  // printm("Enclave Load Page Table\n");
 
   result = sm_enclave_load_page_table(enclave_id, page_table_address, EVBASE, 2, NODE_ACL);
   if(result != MONITOR_OK) {
@@ -325,7 +376,7 @@ void enclave_core(void) {
 
   page_table_address += PAGE_SIZE;
 
-  printm("Enclave Load Page Table\n");
+  // printm("Enclave Load Page Table\n");
 
   result = sm_enclave_load_page_table(enclave_id, page_table_address, EVBASE, 1, NODE_ACL);
   if(result != MONITOR_OK) {
@@ -344,7 +395,7 @@ void enclave_core(void) {
 
   for(int i = 0; i < num_pages_enclave; i++) {
 
-    printm("Enclave Load Page\n");
+    // printm("Enclave Load Page\n");
 
     result = sm_enclave_load_page(enclave_id, phys_addr, virtual_addr, untrusted_addr, LEAF_ACL);
     if(result != MONITOR_OK) {
@@ -365,7 +416,7 @@ void enclave_core(void) {
   thread_id_t thread_id = enclave_id + (size_enclave_metadata * PAGE_SIZE);
   uint64_t timer_limit = 0xeffffffffff;
 
-  printm("Thread Load\n");
+  // printm("Thread Load\n");
 
   result = sm_thread_load(enclave_id, thread_id, EVBASE, 0x0, timer_limit); // SP is set by the enclave itself
   if(result != MONITOR_OK) {
@@ -373,7 +424,7 @@ void enclave_core(void) {
     test_completed();
   }
 
-  printm("Enclave Init\n");
+  // printm("Enclave Init\n");
 
   result = sm_enclave_init(enclave_id);
   if(result != MONITOR_OK) {
@@ -386,7 +437,7 @@ void enclave_core(void) {
   *flag = STATE_3;
   asm volatile("fence");
 
-  printm("Enclave Enter\n");
+  // printm("Enclave Enter\n");
 
   result = sm_enclave_enter(enclave_id, thread_id);
 
