@@ -40,6 +40,8 @@ struct AES_ctx aes_ctx_baseline;
 
 uint8_t scratch[1024];
 
+volatile int *flag = (int *) SHARED_MEM_SYNC;
+
 void untrusted_main(int core_id, uintptr_t fdt_addr) {
   // Init Peterson's Lock library with core_id
   init_p_lock_global(core_id);
@@ -65,24 +67,30 @@ void print_bytes(void * ptr, size_t length) {
 }
 
 void client_core(void) {
-  volatile int *flag = (int *) SHARED_MEM_SYNC;
+  // volatile int *flag = (int *) SHARED_MEM_SYNC;
   // await flag
   asm volatile("fence");
   while(*flag != STATE_3) {
     if(*flag == STATE_1) {
      api_result_t res = sm_region_update();
+     printm("Client res: %d\n", res);
      if(res == MONITOR_OK) {
       *flag = STATE_2;
      }
     }
   };
 
+  // initialize queues
+  init_enclave_queues();
+
+  printm("Made it here with flag: %d\n", *flag);
+
   bool verified = verify_attestation(enclave_id);
   printm("Verified? ");
   if (verified) { printm("Yes!\n"); } else { printm("Nope :(\n"); }
 
   // initialize queues
-  init_enclave_queues();
+  // init_enclave_queues();
 
   // HACKS ON HACKS - Leaves spaces for the two queues
   init_heap(SHARED_MEM_REG + (2 * sizeof(queue_t)), 500 * PAGE_SIZE);
@@ -266,7 +274,7 @@ void client_core(void) {
 }
 
 void enclave_core(void) {
-  volatile int *flag = (int *) SHARED_MEM_SYNC;
+  // volatile int *flag = (int *) SHARED_MEM_SYNC;
   *flag = STATE_0;
 
   api_result_t result;
@@ -296,6 +304,7 @@ void enclave_core(void) {
   }
 
   *flag = STATE_1;
+  printm("Enclave: Flag has been set to %d\n", *flag);
   while(*flag != STATE_2);
 
   // printm("Region free\n");
