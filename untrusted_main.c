@@ -33,6 +33,11 @@ static void client_core(void);
 
 key_entry_t enclave_keys;
 
+extern const float tensor_cnn1_weight[20][1][5][5];
+extern const float tensor_cnn2_weight[12][20][3][3]; 
+extern const float tensor_linear_bias[10]; 
+extern const float tensor_linear_weight[10][108];
+
 struct AES_ctx aes_ctx;
 #if (MEASURE >= 6)
 struct AES_ctx aes_ctx_baseline;
@@ -242,6 +247,13 @@ void client_core(void) {
   riscv_perf_cntr_end();
 #endif
 #else
+
+  request_mnist_init((uintptr_t) &tensor_cnn1_weight, (uintptr_t) &tensor_cnn2_weight, (uintptr_t) &tensor_linear_bias, (uintptr_t) &tensor_linear_weight);
+
+  do {
+    ret = pop(qresp, (void **) &m);
+  } while((ret != 0) || (m->f != F_MNIST_INIT));
+
   for (int i = 0; i < 1024; i++) {
     image_ptr = ((uint8_t *)&images_bin) + i*data_length;
     label = ((uint8_t *)&labels_bin)[i];
@@ -252,6 +264,9 @@ void client_core(void) {
 
     // Encrypt and send off to enclave
     local_aes_xcrypt(&aes_ctx, &scratch, data_length);
+
+    float output[1][10];
+    entry(image_ptr, &output);
 
     request_mnist(&scratch, data_length, &res);
 

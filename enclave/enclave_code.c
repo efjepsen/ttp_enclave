@@ -85,6 +85,16 @@ void handle_add_1(msg_t * msg) {
   msg->ret = 0;
 }
 
+void handle_mnist_init(msg_t * msg) {
+  uintptr_t tensor_cnn1_weight_ptr = msg->args[0];
+  uintptr_t tensor_cnn2_weight_ptr = msg->args[1];
+  uintptr_t tensor_linear_bias_ptr = msg->args[2];
+  uintptr_t tensor_linear_weight_ptr = msg->args[3];
+  uintptr_t tensor_14_ptr = msg->args[4];
+
+  mnist_14x14_init(tensor_cnn1_weight_ptr, tensor_cnn2_weight_ptr, tensor_linear_bias_ptr, tensor_linear_weight_ptr, tensor_14_ptr);
+}
+
 void handle_mnist(msg_t * msg) {
   size_t length = msg->args[0];
   void * encrypted_msg = msg->args[1];
@@ -195,6 +205,9 @@ void enclave_main() {
         break;
       case F_ADD_1:
         handle_add_1(m);
+        break;
+      case F_MNIST_INIT:
+        handle_mnist_init(m);
         break;
       case F_MNIST:
 #if (MEASURE == 1)
