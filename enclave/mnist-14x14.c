@@ -167,9 +167,9 @@ static inline void node_Gemm_9( const float A[1][108], const float B[10][108], c
 void entry(const float tensor_network_input[1][1][14][14], float tensor_network_output[1][10]) {
 
 	volatile float a = (*tensor_cnn1_weight)[0][0][0][0];
-	a += (*tensor_cnn2_weight)[0][0][0][0];
-	a += (*tensor_linear_bias)[0];
-	a += (*tensor_linear_weight)[0][0];
+	volatile float b = (*tensor_cnn2_weight)[0][0][0][0];
+	volatile float c = (*tensor_linear_bias)[0];
+	volatile float d = (*tensor_linear_weight)[0][0];
 
   platform_disable_predictors();
 	node_Conv_3( tensor_network_input, *tensor_cnn1_weight, tu0.tensor_8);
